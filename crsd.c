@@ -11,10 +11,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <map>
+#include <vector>
 #include "interface.h"
 
 int serverSocket = 0;
-int clientSocket = 0;
+/*
+Keys are the names of chatrooms.
+Pairs contain the port as the first index and a vector of sockets as the second index.
+*/
+std::map<std::string, std::pair<int, std::vector<int>>> chatrooms;
+
+std::vector<std::string> splitOnSpace(std::string input) {
+    std::vector<std::string> splitInput;
+    std::string param = "";
+    for (int i = 0; i < input.length(); i++) {
+        if (!isspace(input[i])) {
+            param += input[i];
+        } else {
+            splitInput.push_back(param);
+            param = "";
+        }
+    }
+    // Get the last parameter
+    splitInput.push_back(param);
+    return splitInput;
+}
 
 void* clientReceiver(void* cS) {
   int* clientSocket = (int*) cS;
@@ -27,8 +49,39 @@ void* clientReceiver(void* cS) {
     if(received > 0) {
       messageString = message;
       std::cout << "Message from " << *clientSocket << ": " << messageString;
-      toSend = "echo";
-      send(*clientSocket, toSend.c_str(), toSend.length(), 0);
+      std::vector<std::string> messageVect = splitOnSpace(messageString);
+      if(messageVect[0] == "LIST") {
+        // List chat rooms
+        toSend = "";
+        for(auto i = chatrooms.begin(); i != chatrooms.end(); ++i) {
+          if(i != chatrooms.begin()) {
+            toSend += ", ";
+          }
+          toSend += i->first;
+        }
+        toSend += "\n"
+        send(*clientSocket, toSend.c_str(), toSend.length(), 0);
+      }
+      else if(messageVect[0] == "CREATE") {
+        // Create chatroom and spin up new thread for that room
+        chatrooms[messageVect[1]];
+        toSend = "Creating chat room " + messageVect[1] + ".\n";
+        send(*clientSocket, toSend.c_str(), toSend.length(), 0);
+      }
+      else if(messageVect[0] == "DELETE") {
+        // Delete chatroom and disconnect everyone
+        toSend = "Deleting chat room " + messageVect[1] + ".\n";
+        send(*clientSocket, toSend.c_str(), toSend.length(), 0);
+      }
+      else if(messageVect[0] == "JOIN") {
+        // Join a chatroom
+        toSend = "Connecting you to chat room " + messageVect[1] + ".\n";
+        send(*clientSocket, toSend.c_str(), toSend.length(), 0);
+      }
+      else {
+        toSend = "Could not interpret command.\n";
+        send(*clientSocket, toSend.c_str(), toSend.length(), 0);
+      }
     }
   }
   pthread_exit(NULL);
@@ -68,6 +121,7 @@ int main() {
   struct sockaddr_in clientInfo;
   int clientInfoLength = sizeof(clientInfo);
   memset(&clientInfo, 0, clientInfoLength);
+  int clientSocket = 0;
 
   while(1) {
     // Accept new client's connection and print it for log
