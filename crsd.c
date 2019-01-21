@@ -16,16 +16,19 @@
 int serverSocket = 0;
 int clientSocket = 0;
 
-void* clientReceiver(void* nothing) {
+void* clientReceiver(void* cS) {
+  int* clientSocket = (int*) cS;
   int received = 0;
   char message[MAX_DATA];
+  std::string messageString = "";
+  std::string toSend = "";
   while(1) {
-    received = recv(clientSocket, message, MAX_DATA, 0);
+    received = recv(*clientSocket, message, MAX_DATA, 0);
     if(received > 0) {
-      printf("%s", message);
-      if(std::string(message) == "exit") {
-        break;
-      }
+      messageString = message;
+      std::cout << "Message from " << *clientSocket << ": " << messageString;
+      toSend = "echo";
+      send(*clientSocket, toSend.c_str(), toSend.length(), 0);
     }
   }
   pthread_exit(NULL);
@@ -72,7 +75,7 @@ int main() {
     printf("Client %s:%d connected.\n", inet_ntoa(clientInfo.sin_addr), ntohs(clientInfo.sin_port));
 
     pthread_t clientThread;
-    if(pthread_create(&clientThread, NULL, &clientReceiver, (void*) NULL) != 0) {
+    if(pthread_create(&clientThread, NULL, &clientReceiver, (void*) &clientSocket) != 0) {
       printf("Thread couldn't be created");
       break;
     }
