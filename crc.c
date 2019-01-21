@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +33,7 @@ int main(int argc, char** argv)
     int sockfd = connect_to(argv[1], atoi(argv[2]));
 
     char command[MAX_DATA];
-        get_command(command, MAX_DATA);
+    get_command(command, MAX_DATA);
 
     struct Reply reply = process_command(sockfd, command);
     display_reply(command, reply);
