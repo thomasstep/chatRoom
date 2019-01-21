@@ -21,7 +21,7 @@ Keys are the names of chatrooms.
 Pairs contain the port and threadID as the first index and a vector of sockets as the second index.
 PS I know this looks terrifying.
 */
-std::map<std::string, std::pair<std::pair<int, pthread_t>, std::vector<int>>>* chatrooms = new std::map<std::string, std::pair<std::pair<int, pthread_t>, std::vector<int>>>;
+std::map<std::string, std::pair<std::pair<int, pthread_t*>, std::vector<int>*>>* chatrooms = new std::map<std::string, std::pair<std::pair<int, pthread_t*>, std::vector<int>*>>;
 
 // This function just splits words in a string into vector entries by space delimiter
 std::vector<std::string> splitOnSpace(std::string input) {
@@ -41,19 +41,38 @@ std::vector<std::string> splitOnSpace(std::string input) {
 }
 
 void sendToAll(int clientSocket, std::string chatroomName, char* message) {
-  std::vector<int> clients;
+  std::vector<int>* clients;
   std::string messageString = "";
   messageString = message;
-  std::cout << "Sending message: " << messageString << std::endl;
+  std::cout << "Sending message: " << messageString << " to chatroom " << chatroomName << std::endl;
   for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
     if(i->first == chatroomName) {
       clients = i->second.second;
     }
   }
-  for(auto i = clients.begin(); i != clients.end(); ++i) {
-    std::cout << "Sending message: " << messageString << " to " << clientSocket << std::endl;
-    send(clientSocket, message, MAX_DATA, 0);
+  for(auto i = clients->begin(); i != clients->end(); ++i) {
+    if(*i != clientSocket) {
+      send(*i, message, MAX_DATA, 0);
+    }
   }
+  return;
+}
+
+void leaveChatroom(int clientSocket, std::string chatroomName) {
+  std::vector<int>* clients;
+  for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
+    if(i->first == chatroomName) {
+      clients = i->second.second;
+    }
+  }
+  auto toErase = clients->begin();
+  for(auto i = clients->begin(); i != clients->end(); ++i) {
+    if(*i == clientSocket) {
+      toErase = i;
+    }
+  }
+  clients->erase(toErase);
+  return;
 }
 
 void* chatReceiver(void* cCI) {
@@ -63,17 +82,25 @@ void* chatReceiver(void* cCI) {
   char message[MAX_DATA];
   std::string messageString = "";
   while(1) {
+    memset(message, 0, MAX_DATA);
     received = recv(clientSocket, message, MAX_DATA, 0);
     if(received > 0) {
       messageString = message;
-      std::cout << "Received message: " << messageString << " from " << clientSocket << std::endl;
-      sendToAll(clientSocket, (*clientChatInfo).second, message);
+      if(messageString.substr(0,4) == "exit") {
+        std::cout << clientSocket << " is leaving." << std::endl;
+        leaveChatroom(clientSocket, (*clientChatInfo).second);
+        return NULL;
+      }
+      else {
+        std::cout << "Received message: " << messageString << " from " << clientSocket << std::endl;
+        sendToAll(clientSocket, (*clientChatInfo).second, message);
+      }
     }
   }
 }
 
 void* chatroomHandler(void* cE) {
-  std::pair<std::string, std::pair<std::pair<int, pthread_t>, std::vector<int>>>* chatroomEntry = (std::pair<std::string, std::pair<std::pair<int, pthread_t>, std::vector<int>>>*) cE;
+  std::pair<std::string, std::pair<std::pair<int, pthread_t*>, std::vector<int>*>>* chatroomEntry = (std::pair<std::string, std::pair<std::pair<int, pthread_t*>, std::vector<int>*>>*) cE;
   // Create a receiver thread and a sender thread
   int port = (*chatroomEntry).second.first.first;
   // Create server socket
@@ -113,7 +140,7 @@ void* chatroomHandler(void* cE) {
   while(1) {
     // Accept new client's connection and print it for log
     clientSocket = accept(chatroomSocket, (struct sockaddr*) &clientInfo, (socklen_t*) &clientInfoLength);
-    (*chatroomEntry).second.second.push_back(clientSocket);
+    (*chatroomEntry).second.second->push_back(clientSocket);
     printf("Client %s:%d connected.\n", inet_ntoa(clientInfo.sin_addr), ntohs(clientInfo.sin_port));
 
     pthread_t clientThread;
@@ -175,11 +202,11 @@ void* clientReceiver(void* cS) {
           }
         }
         // Creating the necessary components for a chatroom and adding entry to map
-        std::vector<int> emptyVect;
+        std::vector<int>* emptyVect = new std::vector<int>();
         pthread_t chatroomThread;
-        std::pair<int, pthread_t> ids(port, chatroomThread);
-        std::pair<std::pair<int, pthread_t>, std::vector<int>> second(ids, emptyVect);
-        std::pair<std::string, std::pair<std::pair<int, pthread_t>, std::vector<int>>> chatroomEntry(messageVect[1], second);
+        std::pair<int, pthread_t*> ids(port, &chatroomThread);
+        std::pair<std::pair<int, pthread_t*>, std::vector<int>*> second(ids, emptyVect);
+        std::pair<std::string, std::pair<std::pair<int, pthread_t*>, std::vector<int>*>> chatroomEntry(messageVect[1], second);
         chatrooms->insert(chatroomEntry);
         toSend = "Creating chat room \'" + messageVect[1] + "\' on port " + std::to_string(port) + ".\n";
         pthread_create(&chatroomThread, NULL, &chatroomHandler, (void*) &chatroomEntry);
@@ -193,7 +220,7 @@ void* clientReceiver(void* cS) {
       else if(messageVect[0] == "JOIN") {
         // Join a chatroom
         int port = 0;
-        std::vector<int> chatroom;
+        std::vector<int>* chatroom;
         for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
           if(i->first == messageVect[1]) {
             port = i->second.first.first;
@@ -205,7 +232,7 @@ void* clientReceiver(void* cS) {
         }
         else {
           toSend = "Chat room " + messageVect[1] + " is on port " + std::to_string(port) + ".\n";
-          toSend = toSend + "There are currently " + std::to_string(chatroom.size()) + " others in the chatroom.\n";
+          toSend = toSend + "There are currently " + std::to_string(chatroom->size()) + " others in the chatroom.\n";
         }
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
