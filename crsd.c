@@ -47,9 +47,6 @@ void sendToAll(int clientSocket, std::string chatroomName, char* message) {
   std::cout << "Sending message: " << messageString << " to chatroom " << chatroomName << std::endl;
   for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
     if(i->first == chatroomName) {
-      if(!*(i->second.first.second)) {
-        return;
-      }
       clients = i->second.second;
     }
   }
@@ -65,9 +62,11 @@ void sendToAll(int clientSocket, std::string chatroomName, char* message) {
 // Finds the chatroom specified and closes all sockets connected to it
 void disconnectAll(std::string chatroomName) {
   std::vector<int>* clients;
+  char deletingMessage[MAX_DATA] = "Deleting this chatroom. Disconnecting memebers.\n";
   for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
     if(i->first == chatroomName) {
       clients = i->second.second;
+      sendToAll(0, chatroomName, deletingMessage);
     }
   }
   for(auto i = clients->begin(); i != clients->end(); ++i) {
@@ -172,7 +171,6 @@ void* chatroomHandler(void* cE) {
     }
   }
   std::cout << "Deleting chatroom" << std::endl;
-  disconnectAll((*chatroomEntry).first);
   close(chatroomSocket);
   pthread_exit(NULL);
 }
@@ -251,6 +249,7 @@ void* clientReceiver(void* cS) {
         for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
           if(i->first == messageVect[1]) {
             *(i->second.first.second) = false;
+            disconnectAll(i->first);
             toErase = i;
           }
         }
