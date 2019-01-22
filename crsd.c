@@ -47,6 +47,9 @@ void sendToAll(int clientSocket, std::string chatroomName, char* message) {
   std::cout << "Sending message: " << messageString << " to chatroom " << chatroomName << std::endl;
   for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
     if(i->first == chatroomName) {
+      if(!*(i->second.first.second)) {
+        return;
+      }
       clients = i->second.second;
     }
   }
