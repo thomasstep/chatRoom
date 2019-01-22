@@ -193,9 +193,10 @@ void* clientReceiver(void* cS) {
         // List chat rooms
         toSend = "";
         // Loop through each chatroom and add its name to the string sent to client
+        // List chatrooms separated by a space
         for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
           if(i != chatrooms->begin()) {
-            toSend += ", ";
+            toSend += " ";
           }
           toSend += i->first;
         }
@@ -232,13 +233,13 @@ void* clientReceiver(void* cS) {
         std::pair<std::pair<int, bool*>, std::vector<int>*> second(ids, emptyVect);
         std::pair<std::string, std::pair<std::pair<int, bool*>, std::vector<int>*>> chatroomEntry(messageVect[1], second);
         chatrooms->insert(chatroomEntry);
-        toSend = "Creating chat room \'" + messageVect[1] + "\' on port " + std::to_string(port) + ".\n";
+        toSend = "Created "+ std::to_string(port) + "\n";
         pthread_create(&chatroomThread, NULL, &chatroomHandler, (void*) &chatroomEntry);
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
       else if(messageVect[0] == "DELETE") {
         // Delete chatroom and disconnect everyone
-        toSend = "Deleting chat room " + messageVect[1] + ".\n";
+        toSend = "Deleted\n";
         auto toErase = chatrooms->end();
         for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
           if(i->first == messageVect[1]) {
@@ -250,7 +251,8 @@ void* clientReceiver(void* cS) {
           chatrooms->erase(toErase);
         }
         else {
-          toSend = "Chatroom does not exist.\n";
+          // Does not exist
+          toSend = "DNE\n";
         }
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
@@ -265,11 +267,12 @@ void* clientReceiver(void* cS) {
           }
         }
         if(port == 0) {
-          toSend = "That chatroom does not exist.";
+          // Chatroom does not exist
+          toSend = "DNE";
         }
         else {
-          toSend = "Chat room " + messageVect[1] + " is on port " + std::to_string(port) + ".\n";
-          toSend = toSend + "There are currently " + std::to_string(chatroom->size()) + " others in the chatroom.\n";
+          // Only send port and current users separated by a space
+          toSend = std::to_string(port) + " " + std::to_string(chatroom->size()) + "\n";
         }
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
