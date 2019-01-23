@@ -214,7 +214,8 @@ void* clientReceiver(void* cS) {
         // Start from port 8889 and find the closest unused port
         // Can only support a limited amount of chatrooms
         if(chatrooms->find(messageVect[1]) != chatrooms->end()) {
-          toSend = "Chatroom already exists.\n";
+          // FAILURE_ALREADY_EXISTS
+          toSend = "1\n";
         }
         else {
           int port = 8889;
@@ -243,14 +244,16 @@ void* clientReceiver(void* cS) {
           std::pair<std::pair<int*, bool*>, std::vector<int>*> second(ids, emptyVect);
           std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>* chatroomEntry = new std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>(messageVect[1], second);
           chatrooms->insert(*chatroomEntry);
-          toSend = "Created "+ std::to_string(port) + "\n";
+          // SUCCESS
+          toSend = "0\n";
           pthread_create(chatroomThread, NULL, &chatroomHandler, (void*) chatroomEntry);
         }
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
       else if(messageVect[0] == "DELETE") {
         // Delete chatroom and disconnect everyone
-        toSend = "Deleted\n";
+        // SUCCESS
+        toSend = "0\n";
         auto toErase = chatrooms->end();
         for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
           if(i->first == messageVect[1]) {
@@ -263,8 +266,8 @@ void* clientReceiver(void* cS) {
           chatrooms->erase(toErase);
         }
         else {
-          // Does not exist
-          toSend = "DNE\n";
+          // FAILURE_NOT_EXISTS
+          toSend = "2\n";
         }
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
@@ -279,8 +282,8 @@ void* clientReceiver(void* cS) {
           }
         }
         if(port == 0) {
-          // Chatroom does not exist
-          toSend = "DNE";
+          // FAILURE_NOT_EXISTS
+          toSend = "2\n";
         }
         else {
           // Only send port and current users separated by a space
@@ -289,7 +292,8 @@ void* clientReceiver(void* cS) {
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
       else {
-        toSend = "Could not interpret command.\n";
+        // FAILURE_UNKNOWN
+        toSend = "4\n";
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
     }
