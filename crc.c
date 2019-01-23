@@ -1,15 +1,18 @@
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
 
+#include <iostream>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "interface.h"
 
+using namespace std;
 
 /*
  * TODO: IMPLEMENT BELOW THREE FUNCTIONS
@@ -70,9 +73,30 @@ int connect_to(const char *host, const int port)
   // so that other functions such as "process_command" can use it
   // ------------------------------------------------------------
 
-    // below is just dummy code for compilation, remove it.
-  int sockfd = -1;
-  return sockfd;
+  int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+  if(clientSocket == -1) {
+    printf("Could not create socket. Exiting.");
+    exit(1);
+  }
+
+  // Setup sockaddr_in struct with server's info
+  struct sockaddr_in serverInfo;
+  int serverInfoLength = sizeof(serverInfo);
+  memset(&serverInfo, 0, serverInfoLength);
+  serverInfo.sin_family = AF_INET;
+  serverInfo.sin_addr.s_addr = inet_addr(host);
+  // inet_pton(AF_INET, "0.0.0.0", &serverInfo.sin_addr.s_addr);
+  serverInfo.sin_port = htons(port);
+
+  cout << "Client connecting to: " << inet_ntoa(serverInfo.sin_addr) << ":" << ntohs(serverInfo.sin_port) << endl;
+
+  // Connect to server
+  int connection = connect(clientSocket, (struct sockaddr*)&serverInfo, serverInfoLength);
+  if(connection == -1) {
+    cout << "There was an error connecting to the server" << endl;
+    exit(1);
+  }
+  return clientSocket;
 }
 
 /*
