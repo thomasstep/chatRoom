@@ -62,7 +62,7 @@ void sendToAll(int clientSocket, std::string chatroomName, char* message) {
 // Finds the chatroom specified and closes all sockets connected to it
 void disconnectAll(std::string chatroomName) {
   std::vector<int>* clients;
-  char deletingMessage[MAX_DATA] = "Deleting this chatroom. Disconnecting memebers.\n";
+  char deletingMessage[MAX_DATA] = "Warning: the chatroom is going to be closed...\n";
   for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
     if(i->first == chatroomName) {
       clients = i->second.second;
@@ -87,6 +87,7 @@ void leaveChatroom(int clientSocket, std::string chatroomName) {
       toErase = i;
     }
   }
+  close(*toErase);
   clients->erase(toErase);
   return;
 }
@@ -102,7 +103,7 @@ void* chatReceiver(void* cCI) {
     received = recv(clientSocket, message, MAX_DATA, 0);
     if(received > 0) {
       messageString = message;
-      if(messageString.substr(0,4) == "exit") {
+      if(messageString.substr(0,1) == "Q") {
         std::cout << clientSocket << " is leaving." << std::endl;
         leaveChatroom(clientSocket, (*clientChatInfo).second);
         return NULL;
@@ -161,7 +162,7 @@ void* chatroomHandler(void* cE) {
       break;
     }
     printf("Client %s:%d connected.\n", inet_ntoa(clientInfo.sin_addr), ntohs(clientInfo.sin_port));
-    std::cout << "CHATROOM: " << (*chatroomEntry).first << " PORT: " << port << std::endl;
+    //std::cout << "CHATROOM: " << (*chatroomEntry).first << " PORT: " << port << std::endl;
 
     pthread_t clientThread;
     std::pair<int, std::string> clientChatInfo(clientSocket, (*chatroomEntry).first);
@@ -234,7 +235,7 @@ void* clientReceiver(void* cS) {
         pthread_t* chatroomThread = new pthread_t;
         bool keepRunning = true;
         std::pair<int*, bool*> ids(new int(port), new bool(keepRunning));
-        std::cout << "PORT REF: " << ids.first << std::endl;
+        //std::cout << "PORT REF: " << ids.first << std::endl;
         std::pair<std::pair<int*, bool*>, std::vector<int>*> second(ids, emptyVect);
         std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>* chatroomEntry = new std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>(messageVect[1], second);
         chatrooms->insert(*chatroomEntry);
