@@ -29,9 +29,15 @@ void* recv_msg_handler(void* cr_fd) {
         int receive = recv(chatroom_fd, receiveMessage, 201, 0);
         int message_len = strlen(receiveMessage);
 
+
         //printf("length: %d\n",message_len);
         //printf("AFTER\n");
+        
         if (message_len > 0) {
+            if (strcmp(receiveMessage, "Warning: the chatroom is going to be closed...\n") == 0){
+              printf("WE IN");
+              one = 0;
+            } 
             display_message(receiveMessage);
         } else if (message_len == 0) {
             continue;
@@ -40,6 +46,9 @@ void* recv_msg_handler(void* cr_fd) {
         }
         //printf("one: %d\n", one);
     }
+    printf("NULL");
+    pthread_exit(NULL);
+    return NULL;
 }
 
 void* send_msg_handler(void* cr_fd) {
@@ -56,6 +65,8 @@ void* send_msg_handler(void* cr_fd) {
             break;
         }
     }
+    pthread_exit(NULL);
+    return NULL;
 }
 
 int main(int argc, char** argv)
@@ -79,9 +90,11 @@ int main(int argc, char** argv)
     display_reply(command, reply);
 
     touppercase(command, strlen(command) - 1);
-    if (strncmp(command, "JOIN", 4) == 0) {
-      printf("Now you are in the chatmode\n");
+    if (strncmp(command, "JOIN", 4) == 0 && reply.status == SUCCESS) {
+      printf("Now you are in the chatmode (Press 'Q' to exit chatmode)\n");
       process_chatmode(argv[1], reply.port);
+      printf("TITLE");
+      display_title();
     }
 
     close(sockfd);
@@ -172,7 +185,8 @@ struct Reply process_command(const int sockfd, char* command)
     char* ptr = strtok(temp, delim);
     char buf[1000];
     int numbytes = 0;
-
+    int received = 0;
+    memset(buf, 0, 1000);
 
     if(strcmp(ptr, "CREATE") == 0){
       send(sockfd, command, inputLength, 0);
@@ -180,36 +194,55 @@ struct Reply process_command(const int sockfd, char* command)
       //printf("%s\n", buf);
 
       struct Reply reply; 
-      //reply.status = 
+      received = atoi(buf);
+      if(received == 0){
+        reply.status = SUCCESS;
+      } 
+      else {
+        reply.status = FAILURE_ALREADY_EXISTS;
+      }
       return reply;
     } 
     else if(strcmp(ptr, "DELETE") == 0){
       send(sockfd, command, inputLength, 0);
       numbytes = recv(sockfd, buf, 999, 0);
-      //printf("%s\n", buf);      
 
-      // WHAT TO DO 
+      struct Reply reply; 
+      received = atoi(buf);
+      //printf("%d\n", received);
+
+      if(received == 0){
+        reply.status = SUCCESS;
+      } 
+      else {
+        reply.status = FAILURE_NOT_EXISTS;
+      }
+
+      return reply;
     } 
     else if(strcmp(ptr, "JOIN") == 0){
       send(sockfd, command, inputLength, 0);
       numbytes = recv(sockfd, buf, 999, 0);
       //printf("%s\n", buf);
 
-      int buflength = strlen(buf);
-      char *copy_buf = (char*) calloc(inputLength + 1, sizeof(char));
-      strncpy (copy_buf, buf, buflength);
-      char* token = strtok(copy_buf, delim);
-      int port_num = atoi(token);
-      token = strtok(NULL, delim);
-      int member_num = atoi(token);
-
-
-
       struct Reply reply;
-      //reply.status = 
-      reply.num_member = member_num; 
-      reply.port = port_num; 
-
+      received = atoi(buf);
+      if(received != 2){
+        int buflength = strlen(buf);
+        char *copy_buf = (char*) calloc(inputLength + 1, sizeof(char));
+        strncpy (copy_buf, buf, buflength);
+        char* token = strtok(copy_buf, delim);
+        int port_num = atoi(token);
+        token = strtok(NULL, delim);
+        int member_num = atoi(token);
+        reply.status = SUCCESS;
+        reply.num_member = member_num; 
+        reply.port = port_num; 
+      } 
+      else {
+        reply.status = FAILURE_NOT_EXISTS;
+      }
+      
       return reply;
     } 
     else if(strcmp(ptr, "LIST") == 0){
@@ -218,12 +251,14 @@ struct Reply process_command(const int sockfd, char* command)
       //printf("%s\n", buf);
 
       struct Reply reply; 
-      //reply.status = 
+      
       strcpy(reply.list_room, buf);
+      reply.status = SUCCESS;
       return reply;
     } 
     else{
-      printf("Command not recognized");
+      struct Reply reply;
+      reply.status = FAILURE_INVALID;
     }
 
 
@@ -321,6 +356,10 @@ void process_chatmode(const char* host, const int port)
         printf ("Create pthread error!\n");
         exit(EXIT_FAILURE);
     }
+    printf("DONE");
+    pthread_exit(NULL);
+
+
   }
   // ------------------------------------------------------------
   // IMPORTANT NOTICE:
