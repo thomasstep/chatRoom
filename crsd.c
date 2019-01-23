@@ -213,34 +213,39 @@ void* clientReceiver(void* cS) {
         // Create chatroom and spin up new thread for that room
         // Start from port 8889 and find the closest unused port
         // Can only support a limited amount of chatrooms
-        int port = 8889;
-        bool taken = false;
-        // Loop through existing chatrooms; choose port that isn't taken
-        while(port < 9145 && port - 8889 < chatrooms->size() + 1) {
-          taken = false;
-          for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
-            if(*i->second.first.first == port) {
-              taken = true;
+        if(chatrooms->find(messageVect[1]) != chatrooms->end()) {
+          toSend = "Chatroom already exists.\n";
+        }
+        else {
+          int port = 8889;
+          bool taken = false;
+          // Loop through existing chatrooms; choose port that isn't taken
+          while(port < 9145 && port - 8889 < chatrooms->size() + 1) {
+            taken = false;
+            for(auto i = chatrooms->begin(); i != chatrooms->end(); ++i) {
+              if(*i->second.first.first == port) {
+                taken = true;
+              }
+            }
+            if(taken) {
+              port++;
+            }
+            else {
+              break;
             }
           }
-          if(taken) {
-            port++;
-          }
-          else {
-            break;
-          }
+          // Creating the necessary components for a chatroom and adding entry to map
+          std::vector<int>* emptyVect = new std::vector<int>(1, 0);
+          pthread_t* chatroomThread = new pthread_t;
+          bool keepRunning = true;
+          std::pair<int*, bool*> ids(new int(port), new bool(keepRunning));
+          //std::cout << "PORT REF: " << ids.first << std::endl;
+          std::pair<std::pair<int*, bool*>, std::vector<int>*> second(ids, emptyVect);
+          std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>* chatroomEntry = new std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>(messageVect[1], second);
+          chatrooms->insert(*chatroomEntry);
+          toSend = "Created "+ std::to_string(port) + "\n";
+          pthread_create(chatroomThread, NULL, &chatroomHandler, (void*) chatroomEntry);
         }
-        // Creating the necessary components for a chatroom and adding entry to map
-        std::vector<int>* emptyVect = new std::vector<int>(1, 0);
-        pthread_t* chatroomThread = new pthread_t;
-        bool keepRunning = true;
-        std::pair<int*, bool*> ids(new int(port), new bool(keepRunning));
-        //std::cout << "PORT REF: " << ids.first << std::endl;
-        std::pair<std::pair<int*, bool*>, std::vector<int>*> second(ids, emptyVect);
-        std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>* chatroomEntry = new std::pair<std::string, std::pair<std::pair<int*, bool*>, std::vector<int>*>>(messageVect[1], second);
-        chatrooms->insert(*chatroomEntry);
-        toSend = "Created "+ std::to_string(port) + "\n";
-        pthread_create(chatroomThread, NULL, &chatroomHandler, (void*) chatroomEntry);
         send(clientSocket, toSend.c_str(), toSend.length(), 0);
       }
       else if(messageVect[0] == "DELETE") {
