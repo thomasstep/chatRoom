@@ -28,14 +28,11 @@ void* recv_msg_handler(void* cr_fd) {
     while (one != 0) {
         int receive = recv(chatroom_fd, receiveMessage, 201, 0);
         int message_len = strlen(receiveMessage);
-
-
         //printf("length: %d\n",message_len);
         //printf("AFTER\n");
         
         if (message_len > 0) {
-            if (strcmp(receiveMessage, "Warning: the chatroom is going to be closed...\n") == 0){
-              printf("WE IN");
+            if (strcmp(receiveMessage, "Warning: the chatroom is going to be closed...\n") == 0){  //SEND IF Q
               one = 0;
             } 
             display_message(receiveMessage);
@@ -44,11 +41,9 @@ void* recv_msg_handler(void* cr_fd) {
         } else { 
             // -1 
         }
-        //printf("one: %d\n", one);
     }
-    printf("NULL");
-    pthread_exit(NULL);
-    return NULL;
+    close(chatroom_fd);
+    printf("END REC\n");
 }
 
 void* send_msg_handler(void* cr_fd) {
@@ -56,17 +51,14 @@ void* send_msg_handler(void* cr_fd) {
     char message[101] = {};
     while (1) {
         get_message(message, 101);
-
-        // printf("\r%s", "> ");
-        // fflush(stdout);
-
         send(chatroom_fd, message, 101, 0);
-        if (strcmp(message, "exit") == 0) {
+        int message_len = strlen(message);
+        if (strcmp(message, "Q") == 0 || message_len == 0) {
             break;
         }
     }
-    pthread_exit(NULL);
-    return NULL;
+    close(chatroom_fd);
+    printf("END SEND\n");
 }
 
 int main(int argc, char** argv)
@@ -77,12 +69,11 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-    display_title();
+  display_title();
 
   while (1) {
-
     int sockfd = connect_to(argv[1], atoi(argv[2]));
-
+    printf("PORT: %d\n", atoi(argv[2]));
     char command[MAX_DATA];
     get_command(command, MAX_DATA);
 
@@ -93,14 +84,14 @@ int main(int argc, char** argv)
     if (strncmp(command, "JOIN", 4) == 0 && reply.status == SUCCESS) {
       printf("Now you are in the chatmode (Press 'Q' to exit chatmode)\n");
       process_chatmode(argv[1], reply.port);
-      printf("TITLE");
       display_title();
     }
+    printf("OUT\n");
 
     close(sockfd);
-    }
-
-    return 0;
+  }
+  printf("UH OH");
+  return 0;
 }
 
 /*
@@ -254,6 +245,7 @@ struct Reply process_command(const int sockfd, char* command)
       
       strcpy(reply.list_room, buf);
       reply.status = SUCCESS;
+
       return reply;
     } 
     else{
@@ -336,31 +328,29 @@ void process_chatmode(const char* host, const int port)
   // At the same time, the client should wait for a message from
   // the server.
   // ------------------------------------------------------------
-  pthread_t send_msg_thread;
   pthread_t recv_msg_thread;
+  pthread_t send_msg_thread;
 
-  while(1){
-    //printf("BEFORE JOIN\n");
-  
-    (void) pthread_join(send_msg_thread, NULL);
-    (void) pthread_join(recv_msg_thread, NULL);
-    
-    //printf("BEFORE SEND\n");
-    if (pthread_create(&send_msg_thread, NULL, &send_msg_handler, (void*) &chatroom_fd) != 0) {
+  void* result1;
+  void* result2;
+  int flag = 1;
+  while(flag){    
+    if (pthread_create(&recv_msg_thread, NULL, recv_msg_handler, (void*) &chatroom_fd) != 0) {
         printf ("Create pthread error!\n");
         exit(EXIT_FAILURE);
     }
 
-    //printf("BEFORE RECEIVE\n");
-    if (pthread_create(&recv_msg_thread, NULL, &recv_msg_handler, (void*) &chatroom_fd) != 0) {
+    if (pthread_create(&send_msg_thread, NULL, send_msg_handler, (void*) &chatroom_fd) != 0) {
         printf ("Create pthread error!\n");
         exit(EXIT_FAILURE);
     }
-    printf("DONE");
-    pthread_exit(NULL);
-
-
+    pthread_join(send_msg_thread, &result1);
+    pthread_join(recv_msg_thread, &result2);
+    flag = 0;
+    //close(chatroom_fd);
   }
+  //pthread_exit(NULL);
+
   // ------------------------------------------------------------
   // IMPORTANT NOTICE:
   // 1. To get a message from a user, you should use a function
