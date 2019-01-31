@@ -6,7 +6,7 @@ OBJS = crc.out crsd.out
 
 all:
 	@g++ -std=c++11 $(SERVER) -pthread -o $(SERVEROUT)
-	@g++ -std=c++11 $(CLIENT) -o $(CLIENTOUT)
+	@g++ -std=c++11 $(CLIENT) -pthread -o $(CLIENTOUT)
 
 clean:
 	@rm $(OBJS)
