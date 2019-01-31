@@ -21,6 +21,46 @@ int connect_to(const char *host, const int port);
 struct Reply process_command(const int sockfd, char* command);
 void process_chatmode(const char* host, const int port);
 
+void* recv_msg_handler(void* cr_fd) {
+    int chatroom_fd =  *((int *)cr_fd);
+    char receiveMessage[201] = {};
+    int one = 1;
+    while (one != 0) {
+        int receive = recv(chatroom_fd, receiveMessage, 201, 0);
+        int message_len = strlen(receiveMessage);
+        //printf("length: %d\n",message_len);
+        //printf("AFTER\n");
+        
+        if (message_len > 0) {
+            if (strcmp(receiveMessage, "Warning: the chatroom is going to be closed...\n") == 0){  //SEND IF Q
+              one = 0;
+            } 
+            display_message(receiveMessage);
+        } else if (message_len == 0) {
+            continue;
+        } else { 
+            // -1 
+        }
+    }
+    close(chatroom_fd);
+    printf("END REC\n");
+}
+
+void* send_msg_handler(void* cr_fd) {
+    int chatroom_fd =  *((int *)cr_fd);
+    char message[101] = {};
+    while (1) {
+        get_message(message, 101);
+        send(chatroom_fd, message, 101, 0);
+        int message_len = strlen(message);
+        if (strcmp(message, "Q") == 0 || message_len == 0) {
+            break;
+        }
+    }
+    close(chatroom_fd);
+    printf("END SEND\n");
+}
+
 int main(int argc, char** argv)
 {
   if (argc != 3) {
@@ -29,12 +69,11 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-    display_title();
+  display_title();
 
   while (1) {
-
     int sockfd = connect_to(argv[1], atoi(argv[2]));
-
+    printf("PORT: %d\n", atoi(argv[2]));
     char command[MAX_DATA];
     get_command(command, MAX_DATA);
 
@@ -42,15 +81,17 @@ int main(int argc, char** argv)
     display_reply(command, reply);
 
     touppercase(command, strlen(command) - 1);
-    if (strncmp(command, "JOIN", 4) == 0) {
-      printf("Now you are in the chatmode\n");
+    if (strncmp(command, "JOIN", 4) == 0 && reply.status == SUCCESS) {
+      printf("Now you are in the chatmode (Press 'Q' to exit chatmode)\n");
       process_chatmode(argv[1], reply.port);
+      display_title();
     }
+    printf("OUT\n");
 
     close(sockfd);
-    }
-
-    return 0;
+  }
+  printf("UH OH");
+  return 0;
 }
 
 /*
@@ -128,6 +169,89 @@ struct Reply process_command(const int sockfd, char* command)
   //
   // - CREATE/DELETE/JOIN and "<name>" are separated by one space.
   // ------------------------------------------------------------
+    char delim[] = " ";
+    int inputLength = strlen(command);
+    char *temp = (char*) calloc(inputLength + 1, sizeof(char));
+    strncpy (temp,command, inputLength);
+    char* ptr = strtok(temp, delim);
+    char buf[1000];
+    int numbytes = 0;
+    int received = 0;
+    memset(buf, 0, 1000);
+
+    if(strcmp(ptr, "CREATE") == 0){
+      send(sockfd, command, inputLength, 0);
+      numbytes = recv(sockfd, buf, 999, 0);
+      //printf("%s\n", buf);
+
+      struct Reply reply; 
+      received = atoi(buf);
+      if(received == 0){
+        reply.status = SUCCESS;
+      } 
+      else {
+        reply.status = FAILURE_ALREADY_EXISTS;
+      }
+      return reply;
+    } 
+    else if(strcmp(ptr, "DELETE") == 0){
+      send(sockfd, command, inputLength, 0);
+      numbytes = recv(sockfd, buf, 999, 0);
+
+      struct Reply reply; 
+      received = atoi(buf);
+      //printf("%d\n", received);
+
+      if(received == 0){
+        reply.status = SUCCESS;
+      } 
+      else {
+        reply.status = FAILURE_NOT_EXISTS;
+      }
+
+      return reply;
+    } 
+    else if(strcmp(ptr, "JOIN") == 0){
+      send(sockfd, command, inputLength, 0);
+      numbytes = recv(sockfd, buf, 999, 0);
+      //printf("%s\n", buf);
+
+      struct Reply reply;
+      received = atoi(buf);
+      if(received != 2){
+        int buflength = strlen(buf);
+        char *copy_buf = (char*) calloc(inputLength + 1, sizeof(char));
+        strncpy (copy_buf, buf, buflength);
+        char* token = strtok(copy_buf, delim);
+        int port_num = atoi(token);
+        token = strtok(NULL, delim);
+        int member_num = atoi(token);
+        reply.status = SUCCESS;
+        reply.num_member = member_num; 
+        reply.port = port_num; 
+      } 
+      else {
+        reply.status = FAILURE_NOT_EXISTS;
+      }
+      
+      return reply;
+    } 
+    else if(strcmp(ptr, "LIST") == 0){
+      send(sockfd, command, inputLength, 0);
+      numbytes = recv(sockfd, buf, 999, 0);
+      //printf("%s\n", buf);
+
+      struct Reply reply; 
+      
+      strcpy(reply.list_room, buf);
+      reply.status = SUCCESS;
+
+      return reply;
+    } 
+    else{
+      struct Reply reply;
+      reply.status = FAILURE_INVALID;
+    }
 
 
   // ------------------------------------------------------------
@@ -180,11 +304,6 @@ struct Reply process_command(const int sockfd, char* command)
   // ------------------------------------------------------------
 
   // REMOVE below code and write your own Reply.
-  struct Reply reply;
-  reply.status = SUCCESS;
-  reply.num_member = 5;
-  reply.port = 1024;
-  return reply;
 }
 
 /*
@@ -201,7 +320,7 @@ void process_chatmode(const char* host, const int port)
   // to the server using host and port.
   // You may re-use the function "connect_to".
   // ------------------------------------------------------------
-
+  int chatroom_fd = connect_to(host, port);
   // ------------------------------------------------------------
   // GUIDE 2:
   // Once the client have been connected to the server, we need
@@ -209,19 +328,41 @@ void process_chatmode(const char* host, const int port)
   // At the same time, the client should wait for a message from
   // the server.
   // ------------------------------------------------------------
+  pthread_t recv_msg_thread;
+  pthread_t send_msg_thread;
 
-    // ------------------------------------------------------------
-    // IMPORTANT NOTICE:
-    // 1. To get a message from a user, you should use a function
-    // "void get_message(char*, int);" in the interface.h file
-    //
-    // 2. To print the messages from other members, you should use
-    // the function "void display_message(char*)" in the interface.h
-    //
-    // 3. Once a user entered to one of chatrooms, there is no way
-    //    to command mode where the user  enter other commands
-    //    such as CREATE,DELETE,LIST.
-    //    Don't have to worry about this situation, and you can
-    //    terminate the client program by pressing CTRL-C (SIGINT)
+  void* result1;
+  void* result2;
+  int flag = 1;
+  while(flag){    
+    if (pthread_create(&recv_msg_thread, NULL, recv_msg_handler, (void*) &chatroom_fd) != 0) {
+        printf ("Create pthread error!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pthread_create(&send_msg_thread, NULL, send_msg_handler, (void*) &chatroom_fd) != 0) {
+        printf ("Create pthread error!\n");
+        exit(EXIT_FAILURE);
+    }
+    pthread_join(send_msg_thread, &result1);
+    pthread_join(recv_msg_thread, &result2);
+    flag = 0;
+    //close(chatroom_fd);
+  }
+  //pthread_exit(NULL);
+
+  // ------------------------------------------------------------
+  // IMPORTANT NOTICE:
+  // 1. To get a message from a user, you should use a function
+  // "void get_message(char*, int);" in the interface.h file
+  //
+  // 2. To print the messages from other members, you should use
+  // the function "void display_message(char*)" in the interface.h
+  //
+  // 3. Once a user entered to one of chatrooms, there is no way
+  //    to command mode where the user  enter other commands
+  //    such as CREATE,DELETE,LIST.
+  //    Don't have to worry about this situation, and you can
+  //    terminate the client program by pressing CTRL-C (SIGINT)
   // ------------------------------------------------------------
 }

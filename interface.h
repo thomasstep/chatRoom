@@ -129,6 +129,7 @@ void get_message(char* message, const int size)
 void display_message(char* message)
 {
     printf("> %s", message);
+    printf("\n");
 }
 
 void display_reply(char* comm, const struct Reply reply)
